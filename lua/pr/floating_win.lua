@@ -9,8 +9,8 @@ local function float(comments)
 
     for _, comment in pairs(comments) do
         local created_at = "`" .. date(comment.created_at):fmt("%Y %b %d %I:%M %p %Z") .. "`"
-        local user_name = "@" .. comment.user.login .. " "
-        local spacer = ("-"):rep(width - #user_name - #created_at)
+        local user_name = " @" .. comment.user.login .. " "
+        local spacer = ("─"):rep(width - #user_name - #created_at)
         table.insert(lines, user_name .. spacer .. created_at)
         table.insert(lines, "")
         for _, line in pairs(vim.split(comment.body, "\n")) do
