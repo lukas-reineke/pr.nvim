@@ -29,17 +29,17 @@ M.place_new = function(comments)
     end
 end
 
-M.place = function(github_comments, new_comments, opts)
+M.place = function(github_comments, pending_comments, opts)
     opts = opts or {}
     local place_github_comments = vim.F.if_nil(opts.place_github_comments, true)
-    local place_new_comments = vim.F.if_nil(opts.place_new_comments, true)
+    local place_pending_comments = vim.F.if_nil(opts.place_pending_comments, true)
 
     if place_github_comments then
         M.place_github(github_comments)
     end
 
-    if place_new_comments then
-        M.place_new(new_comments)
+    if place_pending_comments then
+        M.place_new(pending_comments)
     end
 end
 

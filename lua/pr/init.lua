@@ -7,7 +7,7 @@ local comment = require "pr/comment"
 local M = {}
 
 M.github_comments = {}
-M.new_comments = {}
+M.pending_comments = {}
 
 M.setup = function()
     signs.setup()
@@ -23,24 +23,24 @@ end
 M.load = function(repo, pr)
     M.github_comments = api.load(repo, pr)
 
-    M.find_new_comments()
+    M.find_pending_comments()
 end
 
 M.place_signs = function(opts)
-    return signs.place(M.github_comments, M.new_comments, opts)
+    return signs.place(M.github_comments, M.pending_comments, opts)
 end
 
 M.open_floating_win = function()
-    return floating_win.open(M.github_comments, M.new_comments)
+    return floating_win.open(M.github_comments, M.pending_comments)
 end
 
 M.set_quickfix = function(opts)
     return quickfix.set(M.github_comments, opts)
 end
 
-M.find_new_comments = function()
+M.find_pending_comments = function()
     signs.clear()
-    M.new_comments = comment.find()
+    M.pending_comments = comment.find()
     M.place_signs()
 end
 
@@ -55,7 +55,7 @@ end
 
 M.delete_comment = function(line1, line2)
     comment.delete_comment(line1, line2)
-    M.find_new_comments()
+    M.find_pending_comments()
 end
 
 return M

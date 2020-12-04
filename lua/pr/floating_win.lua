@@ -33,7 +33,7 @@ local function insert_body(body, width, lines)
     end
 end
 
-local function float(github_comments, new_comments)
+local function float(github_comments, pending_comments)
     local lines = {""}
     local width = 80
     local time_bias = date():getbias() * -1
@@ -60,7 +60,7 @@ local function float(github_comments, new_comments)
         end
     end
 
-    for _, comment in pairs(new_comments) do
+    for _, comment in pairs(pending_comments) do
         local user_name = " Pending "
         local spacer = ("─"):rep(width - #user_name - 1)
         table.insert(lines, user_name .. spacer)
@@ -87,12 +87,12 @@ local function float(github_comments, new_comments)
     return bufnr, winnr
 end
 
-M.open = function(github_comments, new_comments)
+M.open = function(github_comments, pending_comments)
     local bufnr = vim.api.nvim_get_current_buf()
     local cursor = vim.fn.getcurpos()
     local lnum = cursor[2] - 1
     local valid_github_comments = {}
-    local valid_new_comments = {}
+    local valid_pending_comments = {}
 
     for _, comment in pairs(github_comments) do
         local comment_bufnr = vim.fn.bufnr(comment.path)
@@ -108,7 +108,7 @@ M.open = function(github_comments, new_comments)
         ::continue::
     end
 
-    for _, comment in pairs(new_comments) do
+    for _, comment in pairs(pending_comments) do
         local comment_bufnr = vim.fn.bufnr(comment.filename)
         if bufnr ~= comment_bufnr then
             goto continue
@@ -117,12 +117,12 @@ M.open = function(github_comments, new_comments)
             goto continue
         end
 
-        table.insert(valid_new_comments, comment)
+        table.insert(valid_pending_comments, comment)
 
         ::continue::
     end
 
-    local _, winnr = float(valid_github_comments, valid_new_comments)
+    local _, winnr = float(valid_github_comments, valid_pending_comments)
     vim.lsp.util.close_preview_autocmd({"CursorMoved", "CursorMovedI", "BufHidden", "BufLeave", "WinScrolled"}, winnr)
 end
 

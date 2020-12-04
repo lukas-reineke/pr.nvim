@@ -40,7 +40,7 @@ M.new = function(line1, line2)
 
     vim.cmd [[augroup PRSaveComment]]
     vim.cmd [[autocmd! * <buffer>]]
-    vim.cmd [[autocmd BufWritePost <buffer> lua require("pr").find_new_comments()]]
+    vim.cmd [[autocmd BufWritePost <buffer> lua require("pr").find_pending_comments()]]
     vim.cmd [[augroup END]]
 end
 
