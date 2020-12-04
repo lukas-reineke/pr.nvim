@@ -1,8 +1,9 @@
+local util = require "pr/util"
 local M = {}
 
 local get_path = function()
-    local git_base = vim.fn.system("basename $(git rev-parse --show-toplevel)"):gsub("\n", "")
-    local git_branch = vim.fn.system("git rev-parse --abbrev-ref HEAD"):gsub("\n", "")
+    local git_base = util.readp("basename $(git rev-parse --show-toplevel 2> /dev/null) 2> /dev/null")[1]
+    local git_branch = util.readp("git rev-parse --abbrev-ref HEAD 2> /dev/null")[1]
     local path = string.format("%s%s%s/%s", os.getenv("HOME"), "/.cache/nvim/pr.nvim/", git_base, git_branch)
 
     return path
@@ -16,7 +17,7 @@ M.new = function(line1, line2)
     local height = math.ceil(win_height * 0.8)
     local row = math.ceil(win_height * 0.1)
     local col = math.ceil((vim.o.columns / 2) - 40)
-    local commit_id = vim.fn.system("git rev-parse HEAD"):gsub("\n", "")
+    local commit_id = util.readp("git rev-parse HEAD 2> /dev/null")[1]
 
     local bufnr = vim.api.nvim_create_buf(false, false)
     local opt = {
@@ -33,7 +34,7 @@ M.new = function(line1, line2)
 
     local file = string.format("%s++%d++%d++%s", buf_name, line1, line2, commit_id)
     local path = get_path()
-    vim.fn.mkdir(path, "p")
+    os.execute(string.format("mkdir -p %s", path))
     vim.cmd(string.format("edit %s/%s", path, file))
 
     vim.cmd [[set filetype=markdown]]
@@ -62,11 +63,10 @@ M.find = function()
         return {}
     end
 
-    local pfile = assert(io.popen("find " .. get_path() .. "/* -maxdepth 1 2> /dev/null"))
-    for filename in pfile:lines() do
+    local filenames = util.readp(string.format("find %s/* -maxdepth 1 2> /dev/null", path))
+    for _, filename in pairs(filenames) do
         table.insert(files, filename)
     end
-    pfile:close()
 
     local comments = {}
     for i, file in pairs(files) do
@@ -118,11 +118,10 @@ M.delete_comment = function(line1, line2)
         return {}
     end
 
-    local pfile = assert(io.popen(string.format("find %s/%s -maxdepth 1 2> /dev/null", path, file)))
-    for filename in pfile:lines() do
+    local filenames = util.readp(string.format("find %s/%s -maxdepth 1 2> /dev/null", path, file))
+    for _, filename in pairs(filenames) do
         os.remove(filename)
     end
-    pfile:close()
 end
 
 return M
