@@ -31,7 +31,7 @@ M.place_signs = function(opts)
 end
 
 M.open_floating_win = function()
-    return floating_win.open(M.github_comments)
+    return floating_win.open(M.github_comments, M.new_comments)
 end
 
 M.set_quickfix = function(opts)
