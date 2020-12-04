@@ -1,6 +1,8 @@
 local M = {}
 
-M.set = function(comments)
+M.set = function(comments, opts)
+    opts = opts or {}
+    local open_qflist = vim.F.if_nil(opts.open_qflist, true)
     local items = {}
 
     for _, comment in pairs(comments) do
@@ -15,6 +17,10 @@ M.set = function(comments)
     end
 
     vim.fn.setqflist(items)
+
+    if open_qflist then
+        vim.cmd [[copen]]
+    end
 end
 
 return M

@@ -2,13 +2,25 @@ local date = require "date"
 
 local M = {}
 
+local reaction_map = {
+    ["+1"] = "👍",
+    ["-1"] = "👎",
+    ["laugh"] = "😀",
+    ["hooray"] = "🎉",
+    ["confused"] = "☹️",
+    ["heart"] = "❤️",
+    ["rocket"] = "🚀",
+    ["eyes"] = "👀"
+}
+
 local function float(comments)
-    local lines = {}
+    local lines = {""}
     local width = 80
-    local height = 0
+    local height = 1
+    local time_bias = date():getbias() * -1
 
     for _, comment in pairs(comments) do
-        local created_at = "`" .. date(comment.created_at):fmt("%Y %b %d %I:%M %p %Z") .. "`"
+        local created_at = "`" .. date(comment.created_at):addminutes(time_bias):fmt("%Y %b %d %I:%M %p %Z") .. "`"
         local user_name = " @" .. comment.user.login .. " "
         local spacer = ("─"):rep(width - #user_name - #created_at)
         table.insert(lines, user_name .. spacer .. created_at)
@@ -19,6 +31,17 @@ local function float(comments)
             height = height + math.ceil(#line / width)
         end
         table.insert(lines, "")
+        if comment.reactions.total_count > 0 then
+            local reactions = ""
+            for r, count in pairs(comment.reactions) do
+                if r ~= "total_count" and r ~= "url" and count > 0 then
+                    reactions = string.format("%s  %s%d", reactions, reaction_map[r], count)
+                end
+            end
+            table.insert(lines, reactions)
+            table.insert(lines, "")
+            height = height + 2
+        end
         height = height + 3
     end
 
@@ -31,6 +54,7 @@ local function float(comments)
 
     vim.api.nvim_set_current_win(winnr)
     vim.cmd("ownsyntax markdown")
+    vim.cmd("setlocal wrap")
     vim.cmd(string.format("syntax match GitHubUserName /@[^ ]\\+/"))
 
     vim.api.nvim_set_current_win(cwin)
