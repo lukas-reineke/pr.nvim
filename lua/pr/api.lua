@@ -38,7 +38,7 @@ M.add_comment = function(repo, pr, comment)
     request:set_body(
         cjson.encode {
             body = comment.body,
-            commit_id = vim.fn.system("git rev-parse HEAD"):gsub("\n", ""),
+            commit_id = comment.commit_id,
             path = comment.filename,
             side = "RIGHT",
             start_side = "RIGHT",

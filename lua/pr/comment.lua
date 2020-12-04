@@ -17,6 +17,7 @@ M.new = function(line1, line2)
     local height = math.ceil(win_height * 0.8)
     local row = math.ceil(win_height * 0.1)
     local col = math.ceil((vim.o.columns / 2) - 40)
+    local commit_id = vim.fn.system("git rev-parse HEAD"):gsub("\n", "")
 
     local bufnr = vim.api.nvim_create_buf(false, false)
     local opt = {
@@ -31,7 +32,7 @@ M.new = function(line1, line2)
     vim.wo.winhl = "Normal:Floating"
     vim.cmd [[setlocal wrap]]
 
-    local file = string.format("%s++%d++%d", buf_name, line1, line2)
+    local file = string.format("%s++%d++%d++%s", buf_name, line1, line2, commit_id)
     local path = get_path()
     vim.fn.mkdir(path, "p")
     vim.cmd(string.format("edit %s/%s", path, file))
@@ -78,6 +79,8 @@ M.find = function()
         f:close()
 
         local parts = vim.split(file, "++")
+        local commit_id = parts[#parts]
+        parts[#parts] = nil
         parts[#parts] = nil
         local lnum = tonumber(parts[#parts])
         parts[#parts] = nil
@@ -89,6 +92,7 @@ M.find = function()
         comments[i] = {
             filename = filename:sub(#path + 3),
             lnum = lnum,
+            commit_id = commit_id,
             body = body
         }
         ::continue::
