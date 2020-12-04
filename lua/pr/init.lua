@@ -17,6 +17,7 @@ M.setup = function()
     vim.cmd [[augroup END]]
 
     vim.cmd [[command! -range PRComment lua require("pr/comment").new(<line1>, <line2>)]]
+    vim.cmd [[command! -range PRDelteComment lua require("pr").delete_comment(<line1>, <line2>)]]
 end
 
 M.load = function(repo, pr)
@@ -38,8 +39,8 @@ M.set_quickfix = function(opts)
 end
 
 M.find_new_comments = function()
+    signs.clear()
     M.new_comments = comment.find()
-
     M.place_signs()
 end
 
@@ -47,9 +48,14 @@ M.add_comments = function(repo, pr)
     for _, c in pairs(comment.find()) do
         api.add_comment(repo, pr, c)
     end
-    comment.delete_path()
+    comment.delete_all_comments()
     signs.clear()
     M.load(repo, pr)
+end
+
+M.delete_comment = function(line1, line2)
+    comment.delete_comment(line1, line2)
+    M.find_new_comments()
 end
 
 return M

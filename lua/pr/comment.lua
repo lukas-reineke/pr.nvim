@@ -1,5 +1,3 @@
-local api = require "pr/api"
-
 local M = {}
 
 local get_path = function()
@@ -10,6 +8,7 @@ local get_path = function()
     return path
 end
 
+-- TODO: support not only floating win
 M.new = function(line1, line2)
     local buf_name = vim.fn.expand("%"):gsub("/", "++")
     local width = 80
@@ -63,7 +62,7 @@ M.find = function()
         return {}
     end
 
-    local pfile = io.popen("find " .. get_path() .. "/* -maxdepth 1")
+    local pfile = assert(io.popen("find " .. get_path() .. "/* -maxdepth 1 2> /dev/null"))
     for filename in pfile:lines() do
         table.insert(files, filename)
     end
@@ -101,8 +100,29 @@ M.find = function()
     return comments
 end
 
-M.delete_path = function()
-    os.execute("rm --recursive " .. get_path())
+M.delete_all_comments = function()
+    local path = get_path()
+
+    if not dir_exists(path) then
+        return
+    end
+    os.execute("rm --recursive " .. path)
+end
+
+M.delete_comment = function(line1, line2)
+    local path = get_path()
+    local buf_name = vim.fn.expand("%"):gsub("/", "++")
+    local file = string.format("%s++%d++%d++%s", buf_name, line1, line2, "*")
+
+    if not dir_exists(path) then
+        return {}
+    end
+
+    local pfile = assert(io.popen(string.format("find %s/%s -maxdepth 1 2> /dev/null", path, file)))
+    for filename in pfile:lines() do
+        os.remove(filename)
+    end
+    pfile:close()
 end
 
 return M

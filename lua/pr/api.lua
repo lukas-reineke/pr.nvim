@@ -7,6 +7,8 @@ local request_timeout = 5
 local github_accept_header =
     "application/vnd.github.v3+json;application/vnd.github.comfort-fade-preview+json;application/vnd.github.squirrel-girl-preview"
 
+-- TODO: abstract api function
+-- TODO: paging
 M.load = function(repo, pr)
     local url = string.format("https://api.github.com/repos/%s/pulls/%d/comments", repo, pr)
     local request = http_request.new_from_uri(url)

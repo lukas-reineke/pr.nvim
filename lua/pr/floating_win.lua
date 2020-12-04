@@ -16,7 +16,6 @@ local reaction_map = {
 local function float(comments)
     local lines = {""}
     local width = 80
-    local height = 1
     local time_bias = date():getbias() * -1
 
     for _, comment in pairs(comments) do
@@ -25,12 +24,27 @@ local function float(comments)
         local spacer = ("─"):rep(width - #user_name - #created_at)
         table.insert(lines, user_name .. spacer .. created_at)
         table.insert(lines, "")
+
+        local padding = "  "
         for _, line in pairs(vim.split(comment.body, "\n")) do
-            line = "  " .. line:gsub("\r", "")
+            line = padding .. line:gsub("\r", "")
+            if #line > width then
+                while #line > width do
+                    local trimmed_line = string.sub(line, 1, width)
+                    local index = trimmed_line:reverse():find(" ")
+                    if index == nil or index > #trimmed_line / 2 then
+                        break
+                    else
+                        table.insert(lines, string.sub(line, 1, width - index))
+                        line = padding .. string.sub(line, width - index + 2, #line)
+                    end
+                end
+            end
             table.insert(lines, line)
-            height = height + math.ceil(#line / width)
         end
+
         table.insert(lines, "")
+
         if comment.reactions.total_count > 0 then
             local reactions = ""
             for r, count in pairs(comment.reactions) do
@@ -40,21 +54,20 @@ local function float(comments)
             end
             table.insert(lines, reactions)
             table.insert(lines, "")
-            height = height + 2
         end
-        height = height + 3
     end
 
     local bufnr = vim.api.nvim_create_buf(false, true)
-    local opt = vim.lsp.util.make_floating_popup_options(width, height, {})
+    local opt = vim.lsp.util.make_floating_popup_options(width, #lines, {})
     local winnr = vim.api.nvim_open_win(bufnr, false, opt)
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
 
     local cwin = vim.api.nvim_get_current_win()
 
     vim.api.nvim_set_current_win(winnr)
+    vim.cmd("setlocal filetype=prcomment")
     vim.cmd("ownsyntax markdown")
-    vim.cmd("setlocal wrap")
+    vim.cmd("setlocal nowrap")
     vim.cmd(string.format("syntax match GitHubUserName /@[^ ]\\+/"))
 
     vim.api.nvim_set_current_win(cwin)
@@ -82,7 +95,7 @@ M.open = function(g_comments)
     end
 
     local _, winnr = float(comments)
-    vim.lsp.util.close_preview_autocmd({"CursorMoved", "CursorMovedI", "BufHidden", "BufLeave"}, winnr)
+    vim.lsp.util.close_preview_autocmd({"CursorMoved", "CursorMovedI", "BufHidden", "BufLeave", "WinScrolled"}, winnr)
 end
 
 return M
