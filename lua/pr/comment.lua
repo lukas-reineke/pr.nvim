@@ -1,3 +1,4 @@
+local floating_win = require "pr/floating_win"
 local util = require "pr/util"
 local M = {}
 
@@ -12,14 +13,14 @@ end
 -- TODO: support not only floating win
 M.new = function(line1, line2)
     local buf_name = vim.fn.expand("%"):gsub("/", "++")
-    local width = 80
-    local win_height = vim.o.lines
-    local height = math.ceil(win_height * 0.8)
-    local row = math.ceil(win_height * 0.1)
-    local col = math.ceil((vim.o.columns / 2) - 40)
     local commit_id = util.readp("git rev-parse HEAD 2> /dev/null")[1]
 
-    local bufnr = vim.api.nvim_create_buf(false, false)
+    local width = 80
+    local height = math.ceil(vim.o.lines * 0.8)
+    local row = math.ceil(vim.o.lines * 0.1)
+    local col = math.ceil((vim.o.columns / 2) - 40)
+
+    local bufnr = vim.api.nvim_create_buf(false, true)
     local opt = {
         relative = "editor",
         row = row,
@@ -28,6 +29,8 @@ M.new = function(line1, line2)
         height = height,
         style = "minimal"
     }
+    local bg_opt = vim.tbl_extend("keep", {col = col - 1, row = row - 1}, opt)
+    local _, bg_bufnr = floating_win.open_border_win(bg_opt, "Normal:Floating")
     local winnr = vim.api.nvim_open_win(bufnr, true, opt)
     vim.wo.winhl = "Normal:Floating"
     vim.cmd [[setlocal wrap]]
@@ -39,9 +42,10 @@ M.new = function(line1, line2)
 
     vim.cmd [[set filetype=markdown]]
 
-    vim.cmd [[augroup PRSaveComment]]
+    vim.cmd [[augroup PRComment]]
     vim.cmd [[autocmd! * <buffer>]]
     vim.cmd [[autocmd BufWritePost <buffer> lua require("pr").find_pending_comments()]]
+    vim.cmd(string.format([[autocmd BufWipeout,BufHidden <buffer> exe 'bw %s']], bg_bufnr))
     vim.cmd [[augroup END]]
 end
 

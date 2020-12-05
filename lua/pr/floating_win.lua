@@ -16,7 +16,7 @@ local reaction_map = {
 local function insert_body(body, width, lines)
     local padding = "  "
     for _, line in pairs(vim.split(body, "\n")) do
-        line = padding .. line:gsub("\r", "")
+        line = padding .. vim.trim(line:gsub("\r", ""))
         if #line > width then
             while #line > width do
                 local trimmed_line = string.sub(line, 1, width)
@@ -66,14 +66,31 @@ local function float(github_comments, pending_comments)
         table.insert(lines, user_name .. spacer)
         table.insert(lines, "")
 
-        insert_body(comment.body, width, lines)
+        insert_body(vim.trim(comment.body), width, lines)
         table.insert(lines, "")
     end
 
-    local bufnr = vim.api.nvim_create_buf(false, true)
     local opt = vim.lsp.util.make_floating_popup_options(width, #lines, {})
+    local bg_opt = vim.tbl_extend("keep", {}, opt)
+
+    if opt.anchor == "NW" then
+        opt.row = opt.row + 1
+        opt.col = opt.col + 1
+    elseif opt.anchor == "NE" then
+        opt.row = opt.row + 1
+        opt.col = opt.col - 1
+    elseif opt.anchor == "SW" then
+        opt.row = opt.row - 1
+        opt.col = opt.col + 1
+    else
+        opt.row = opt.row - 1
+        opt.col = opt.col - 1
+    end
+
+    local bufnr = vim.api.nvim_create_buf(false, true)
     local winnr = vim.api.nvim_open_win(bufnr, false, opt)
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+    local bg_winnr, _ = M.open_border_win(bg_opt, "Normal:WinNormalNC")
 
     local cwin = vim.api.nvim_get_current_win()
 
@@ -84,6 +101,12 @@ local function float(github_comments, pending_comments)
     vim.cmd(string.format("syntax match GitHubUserName /@[^ ]\\+/"))
 
     vim.api.nvim_set_current_win(cwin)
+
+    vim.lsp.util.close_preview_autocmd(
+        {"CursorMoved", "CursorMovedI", "BufHidden", "BufLeave", "WinScrolled"},
+        bg_winnr
+    )
+
     return bufnr, winnr
 end
 
@@ -124,6 +147,28 @@ M.open = function(github_comments, pending_comments)
 
     local _, winnr = float(valid_github_comments, valid_pending_comments)
     vim.lsp.util.close_preview_autocmd({"CursorMoved", "CursorMovedI", "BufHidden", "BufLeave", "WinScrolled"}, winnr)
+end
+
+-- TODO: fix max height
+M.open_border_win = function(opt, winhl)
+    local cwin = vim.api.nvim_get_current_win()
+    local bg_bufnr = vim.api.nvim_create_buf(false, true)
+    local bg_opt = vim.tbl_extend("keep", {width = opt.width + 4, height = opt.height + 2}, opt)
+
+    local bg_lines = {}
+    table.insert(bg_lines, "╭" .. ("─"):rep(opt.width + 2) .. "╮")
+    for i = 2, opt.height + 1 do
+        bg_lines[i] = "│" .. (" "):rep(opt.width + 2) .. "│"
+    end
+    table.insert(bg_lines, "╰" .. ("─"):rep(opt.width + 2) .. "╯")
+    vim.api.nvim_buf_set_lines(bg_bufnr, 0, -1, false, bg_lines)
+    local bg_winnr = vim.api.nvim_open_win(bg_bufnr, true, bg_opt)
+
+    vim.wo.winhl = winhl
+
+    vim.api.nvim_set_current_win(cwin)
+
+    return bg_winnr, bg_bufnr
 end
 
 return M
