@@ -1,4 +1,5 @@
 local date = require "date"
+local util = require "pr/util"
 
 local M = {}
 
@@ -14,8 +15,8 @@ local reaction_map = {
 }
 
 local function insert_body(body, width, lines)
-    local padding = "  "
-    for _, line in pairs(vim.split(body, "\n")) do
+    local padding = " "
+    for _, line in pairs(vim.split(vim.trim(body), "\n")) do
         line = padding .. vim.trim(line:gsub("\r", ""))
         if #line > width then
             while #line > width do
@@ -33,18 +34,23 @@ local function insert_body(body, width, lines)
     end
 end
 
-local function float(github_comments, pending_comments)
+local function float(github_comments, pending_comments, enter, line1, line2)
     local lines = {""}
     local width = 80
     local time_bias = date():getbias() * -1
+    local buf_name = vim.fn.expand("%"):gsub("/", "++")
+    local commit_id = util.readp("git rev-parse HEAD 2> /dev/null")[1]
+    local temp_file_name = ""
+    if line1 ~= nil then
+        temp_file_name = string.format("%s++%d++%d++%s", buf_name, line1, line2, commit_id)
+    end
 
     for _, comment in pairs(github_comments) do
         local created_at = " " .. date(comment.created_at):addminutes(time_bias):fmt("%Y %b %d %I:%M %p %Z")
-        local user_name = " @" .. comment.user.login .. " "
+        local user_name = "@" .. comment.user.login .. " "
         local spacer = ("─"):rep(width - #user_name - #created_at)
         table.insert(lines, user_name .. spacer .. created_at)
         table.insert(lines, "")
-
         insert_body(comment.body, width, lines)
         table.insert(lines, "")
 
@@ -60,60 +66,112 @@ local function float(github_comments, pending_comments)
         end
     end
 
+    if #pending_comments == 0 and enter then
+        local user_name = "Add a comment below "
+        local spacer = ("─"):rep(width - #user_name)
+        table.insert(lines, user_name .. spacer)
+        table.insert(lines, "")
+    end
+
     for _, comment in pairs(pending_comments) do
-        local user_name = " Pending "
-        local spacer = ("─"):rep(width - #user_name - 1)
+        local user_name = "Pending "
+        local spacer = ("─"):rep(width - #user_name)
         table.insert(lines, user_name .. spacer)
         table.insert(lines, "")
 
-        insert_body(vim.trim(comment.body), width, lines)
-        table.insert(lines, "")
+        if enter then
+            for _, line in pairs(vim.split(vim.trim(comment.body), "\n")) do
+                line = vim.trim(line:gsub("\r", ""))
+                table.insert(lines, line)
+            end
+        else
+            insert_body(vim.trim(comment.body), width, lines)
+        end
+
+        if not enter then
+            table.insert(lines, "")
+        end
     end
 
-    local opt = vim.lsp.util.make_floating_popup_options(width, #lines, {})
-    local bg_opt = vim.tbl_extend("keep", {}, opt)
-
-    if opt.anchor == "NW" then
-        opt.row = opt.row + 1
-        opt.col = opt.col + 1
-    elseif opt.anchor == "NE" then
-        opt.row = opt.row + 1
-        opt.col = opt.col - 1
-    elseif opt.anchor == "SW" then
-        opt.row = opt.row - 1
-        opt.col = opt.col + 1
+    local opt
+    local bg_opt
+    if enter then
+        local height = math.ceil(vim.o.lines * 0.8)
+        local row = math.ceil(vim.o.lines * 0.1)
+        local col = math.ceil((vim.o.columns / 2) - 40)
+        opt = {
+            relative = "editor",
+            row = row,
+            col = col,
+            width = width,
+            height = height,
+            style = "minimal"
+        }
+        bg_opt = vim.tbl_extend("keep", {col = col - 2, row = row - 1}, opt)
     else
-        opt.row = opt.row - 1
-        opt.col = opt.col - 1
+        opt = vim.lsp.util.make_floating_popup_options(width, #lines, {})
+        bg_opt = vim.tbl_extend("keep", {}, opt)
+
+        if opt.anchor == "NW" then
+            opt.row = opt.row + 1
+            opt.col = opt.col + 2
+        elseif opt.anchor == "NE" then
+            opt.row = opt.row + 1
+            opt.col = opt.col - 2
+        elseif opt.anchor == "SW" then
+            opt.row = opt.row - 1
+            opt.col = opt.col + 2
+        else
+            opt.row = opt.row - 1
+            opt.col = opt.col - 2
+        end
     end
 
     local bufnr = vim.api.nvim_create_buf(false, true)
-    local winnr = vim.api.nvim_open_win(bufnr, false, opt)
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
-    local bg_winnr, _ = M.open_border_win(bg_opt, "Normal:WinNormalNC")
+    local winnr = vim.api.nvim_open_win(bufnr, false, opt)
+
+    local bg_winnr, bg_bufnr
+    if enter then
+        bg_winnr, bg_bufnr = M.open_border_win(bg_opt, "Normal:Floating")
+    else
+        bg_winnr, bg_bufnr = M.open_border_win(bg_opt, "Normal:WinNormalNC")
+    end
 
     local cwin = vim.api.nvim_get_current_win()
 
     vim.api.nvim_set_current_win(winnr)
     vim.cmd("setlocal filetype=prcomment")
     vim.cmd("ownsyntax markdown")
-    vim.cmd("setlocal nowrap")
+    if enter then
+        vim.cmd("setlocal wrap")
+    else
+        vim.cmd("setlocal nowrap")
+    end
     vim.cmd(string.format("syntax match GitHubUserName /@[^ ]\\+/"))
     vim.cmd(
         string.format("syntax match GitHubDate /\\d\\d\\d\\d \\w\\w\\w \\d\\d \\d\\d:\\d\\d \\(AM\\|PM\\) \\w\\w\\w/")
     )
+    vim.b.temp_file_name = temp_file_name
 
-    vim.api.nvim_set_current_win(cwin)
-
-    vim.lsp.util.close_preview_autocmd(
-        {"CursorMoved", "CursorMovedI", "BufHidden", "BufLeave", "WinScrolled"},
-        bg_winnr
-    )
+    if enter then
+        vim.cmd [[augroup PRComment]]
+        vim.cmd [[autocmd! * <buffer>]]
+        vim.cmd(string.format([[autocmd BufWipeout,BufHidden <buffer> exe 'bw %s']], bg_bufnr))
+        vim.cmd [[augroup END]]
+        vim.wo.winhl = "Normal:Floating"
+    else
+        vim.api.nvim_set_current_win(cwin)
+        vim.lsp.util.close_preview_autocmd(
+            {"CursorMoved", "CursorMovedI", "BufHidden", "BufLeave", "WinScrolled"},
+            bg_winnr
+        )
+    end
 
     return bufnr, winnr
 end
 
-M.open = function(github_comments, pending_comments)
+M.open = function(github_comments, pending_comments, enter, line1, line2)
     local bufnr = vim.api.nvim_get_current_buf()
     local cursor = vim.fn.getcurpos()
     local lnum = cursor[2] - 1
@@ -148,8 +206,13 @@ M.open = function(github_comments, pending_comments)
         ::continue::
     end
 
-    local _, winnr = float(valid_github_comments, valid_pending_comments)
-    vim.lsp.util.close_preview_autocmd({"CursorMoved", "CursorMovedI", "BufHidden", "BufLeave", "WinScrolled"}, winnr)
+    local _, winnr = float(valid_github_comments, valid_pending_comments, enter, line1, line2)
+    if not enter then
+        vim.lsp.util.close_preview_autocmd(
+            {"CursorMoved", "CursorMovedI", "BufHidden", "BufLeave", "WinScrolled"},
+            winnr
+        )
+    end
 end
 
 -- TODO: fix max height

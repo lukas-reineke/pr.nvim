@@ -4,7 +4,7 @@ local M = {}
 
 local get_path = function()
     local git_base = util.readp("basename $(git rev-parse --show-toplevel 2> /dev/null) 2> /dev/null")[1]
-    local git_branch = util.readp("git rev-parse --abbrev-ref HEAD 2> /dev/null")[1]
+    local git_branch = util.readp("git rev-parse --abbrev-ref HEAD 2> /dev/null")[1]:gsub("/", "-")
     local path = string.format("%s%s%s/%s", os.getenv("HOME"), "/.cache/nvim/pr.nvim/", git_base, git_branch)
 
     return path
@@ -47,6 +47,37 @@ M.new = function(line1, line2)
     vim.cmd [[autocmd BufWritePost <buffer> lua require("pr").find_pending_comments()]]
     vim.cmd(string.format([[autocmd BufWipeout,BufHidden <buffer> exe 'bw %s']], bg_bufnr))
     vim.cmd [[augroup END]]
+end
+
+M.save_comment = function()
+    local bufnr = vim.api.nvim_get_current_buf()
+    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+    local width = 80
+    local comment_header = "Add a comment below "
+    local spacer_comment = ("─"):rep(width - #comment_header)
+    local foo = comment_header .. spacer_comment
+    local pending_header = "Pending "
+    local spacer_pending = ("─"):rep(width - #pending_header)
+    local bar = pending_header .. spacer_pending
+    local path = get_path()
+
+    local comment_lines = ""
+
+    local read = false
+    for i = 1, #lines do
+        if read then
+            comment_lines = comment_lines .. "\n" .. lines[i]
+        end
+        if lines[i] == foo or lines[i] == bar then
+            read = true
+        end
+    end
+
+    os.execute(string.format("mkdir -p %s", path))
+    local file = io.open(path .. "/" .. vim.b.temp_file_name, "w+")
+    io.output(file)
+    io.write(vim.trim(comment_lines))
+    io.close(file)
 end
 
 local function dir_exists(file)

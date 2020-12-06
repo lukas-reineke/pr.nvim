@@ -16,8 +16,9 @@ M.setup = function()
     vim.cmd [[autocmd BufReadPost lua require("pr").place_signs()]]
     vim.cmd [[augroup END]]
 
-    vim.cmd [[command! -range PRComment lua require("pr/comment").new(<line1>, <line2>)]]
+    -- vim.cmd [[command! -range PRComment lua require("pr/comment").new(<line1>, <line2>)]]
     vim.cmd [[command! -range PRDelteComment lua require("pr").delete_comment(<line1>, <line2>)]]
+    vim.cmd [[command! -range PRComment lua require("pr").open_floating_win(true, <line1>, <line2>)]]
 end
 
 M.load = function(repo, pr)
@@ -30,8 +31,13 @@ M.place_signs = function(opts)
     return signs.place(M.github_comments, M.pending_comments, opts)
 end
 
-M.open_floating_win = function()
-    return floating_win.open(M.github_comments, M.pending_comments)
+M.open_floating_win = function(enter, line1, line2)
+    return floating_win.open(M.github_comments, M.pending_comments, enter, line1, line2)
+end
+
+M.save_comment = function()
+    comment.save_comment()
+    M.find_pending_comments()
 end
 
 M.set_quickfix = function(opts)
