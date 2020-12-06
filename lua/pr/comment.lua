@@ -121,4 +121,12 @@ M.delete_comment = function(_, line2)
     end
 end
 
+M.suggestion = function()
+    local lines = vim.api.nvim_buf_get_lines(vim.b.bufnr, vim.b.line1 - 1, vim.b.line2, false)
+    local cursor = vim.fn.getcurpos()
+    table.insert(lines, 1, "```suggestion")
+    table.insert(lines, "```")
+    vim.api.nvim_buf_set_lines(cursor[1], cursor[2], cursor[2], false, lines)
+end
+
 return M

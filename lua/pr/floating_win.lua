@@ -18,7 +18,7 @@ local reaction_map = {
 local function insert_body(body, width, lines)
     local padding = " "
     for _, line in pairs(vim.split(vim.trim(body), "\n")) do
-        line = padding .. vim.trim(line:gsub("\r", ""))
+        line = padding .. line:gsub("\r", "")
         if #line > width then
             while #line > width do
                 local trimmed_line = string.sub(line, 1, width)
@@ -51,6 +51,8 @@ local function float(github_comments, pending_comments, enter, line1, line2)
             lines,
             string.format("Comment on lines +%d to +%d", github_comments[1].start_line, github_comments[1].line)
         )
+        line1 = github_comments[1].start_line
+        line2 = github_comments[1].line
     elseif
         #github_comments == 0 and #pending_comments > 0 and pending_comments[1].lnum_start ~= pending_comments[1].lnum
      then
@@ -58,6 +60,8 @@ local function float(github_comments, pending_comments, enter, line1, line2)
             lines,
             string.format("Comment on lines +%d to +%d", pending_comments[1].lnum_start, pending_comments[1].lnum)
         )
+        line1 = pending_comments[1].lnum_start
+        line2 = pending_comments[1].lnum
     elseif line1 ~= line2 then
         table.insert(lines, string.format("Comment on lines +%d to +%d", line1, line2))
     elseif enter then
@@ -101,7 +105,7 @@ local function float(github_comments, pending_comments, enter, line1, line2)
 
         if enter then
             for _, line in pairs(vim.split(vim.trim(comment.body), "\n")) do
-                line = vim.trim(line:gsub("\r", ""))
+                line = line:gsub("\r", "")
                 table.insert(lines, line)
             end
         else
@@ -159,6 +163,7 @@ local function float(github_comments, pending_comments, enter, line1, line2)
     end
 
     local cwin = vim.api.nvim_get_current_win()
+    local cbufnr = vim.api.nvim_get_current_buf()
 
     vim.api.nvim_set_current_win(winnr)
     vim.cmd("setlocal filetype=prcomment")
@@ -176,6 +181,9 @@ local function float(github_comments, pending_comments, enter, line1, line2)
         string.format("syntax match GitHubCommentLength /Comment on lines\\? +\\(\\d\\)\\+\\( to +\\(\\d\\)\\+\\)\\?/")
     )
     vim.b.temp_file_name = temp_file_name
+    vim.b.line1 = line1
+    vim.b.line2 = line2
+    vim.b.bufnr = cbufnr
 
     if enter then
         vim.cmd [[augroup PRComment]]
@@ -184,6 +192,7 @@ local function float(github_comments, pending_comments, enter, line1, line2)
         vim.cmd [[augroup END]]
         vim.wo.winhl = "Normal:Floating"
         vim.cmd [[command! -buffer -range PRCommentSave lua require("pr").save_comment()]]
+        vim.cmd [[command! -buffer -range PRCommentSuggest lua require("pr/comment").suggestion()]]
     else
         vim.api.nvim_set_current_win(cwin)
         vim.lsp.util.close_preview_autocmd(
