@@ -39,7 +39,7 @@ local function float(github_comments, pending_comments)
     local time_bias = date():getbias() * -1
 
     for _, comment in pairs(github_comments) do
-        local created_at = "`" .. date(comment.created_at):addminutes(time_bias):fmt("%Y %b %d %I:%M %p %Z") .. "`"
+        local created_at = " " .. date(comment.created_at):addminutes(time_bias):fmt("%Y %b %d %I:%M %p %Z")
         local user_name = " @" .. comment.user.login .. " "
         local spacer = ("─"):rep(width - #user_name - #created_at)
         table.insert(lines, user_name .. spacer .. created_at)
@@ -99,6 +99,9 @@ local function float(github_comments, pending_comments)
     vim.cmd("ownsyntax markdown")
     vim.cmd("setlocal nowrap")
     vim.cmd(string.format("syntax match GitHubUserName /@[^ ]\\+/"))
+    vim.cmd(
+        string.format("syntax match GitHubDate /\\d\\d\\d\\d \\w\\w\\w \\d\\d \\d\\d:\\d\\d \\(AM\\|PM\\) \\w\\w\\w/")
+    )
 
     vim.api.nvim_set_current_win(cwin)
 
