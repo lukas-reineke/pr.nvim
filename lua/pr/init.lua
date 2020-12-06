@@ -16,9 +16,9 @@ M.setup = function()
     vim.cmd [[autocmd BufReadPost lua require("pr").place_signs()]]
     vim.cmd [[augroup END]]
 
-    -- vim.cmd [[command! -range PRComment lua require("pr/comment").new(<line1>, <line2>)]]
-    vim.cmd [[command! -range PRDelteComment lua require("pr").delete_comment(<line1>, <line2>)]]
+    vim.cmd [[command! -range PRCommentDelete lua require("pr").delete_comment(<line1>, <line2>)]]
     vim.cmd [[command! -range PRComment lua require("pr").open_floating_win(true, <line1>, <line2>)]]
+    vim.cmd [[command! -range PRCommentPreview lua require("pr").open_floating_win(false, <line1>, <line2>)]]
 end
 
 M.load = function(repo, pr)

@@ -1,5 +1,6 @@
 local date = require "date"
 local util = require "pr/util"
+local cjson = require "cjson"
 
 local M = {}
 
@@ -35,15 +36,34 @@ local function insert_body(body, width, lines)
 end
 
 local function float(github_comments, pending_comments, enter, line1, line2)
-    local lines = {""}
+    local lines = {}
     local width = 80
     local time_bias = date():getbias() * -1
     local buf_name = vim.fn.expand("%"):gsub("/", "++")
     local commit_id = util.readp("git rev-parse HEAD 2> /dev/null")[1]
     local temp_file_name = ""
     if line1 ~= nil then
-        temp_file_name = string.format("%s++%d++%d++%s", buf_name, line1, line2, commit_id)
+        temp_file_name = string.format("%s++%d++%d++%s", buf_name, line2, line1, commit_id)
     end
+
+    if #github_comments > 0 and github_comments[1].start_line ~= cjson.null then
+        table.insert(
+            lines,
+            string.format("Comment on lines +%d to +%d", github_comments[1].start_line, github_comments[1].line)
+        )
+    elseif
+        #github_comments == 0 and #pending_comments > 0 and pending_comments[1].lnum_start ~= pending_comments[1].lnum
+     then
+        table.insert(
+            lines,
+            string.format("Comment on lines +%d to +%d", pending_comments[1].lnum_start, pending_comments[1].lnum)
+        )
+    elseif line1 ~= line2 then
+        table.insert(lines, string.format("Comment on lines +%d to +%d", line1, line2))
+    elseif enter then
+        table.insert(lines, string.format("Comment on line +%d", line1))
+    end
+    table.insert(lines, "")
 
     for _, comment in pairs(github_comments) do
         local created_at = " " .. date(comment.created_at):addminutes(time_bias):fmt("%Y %b %d %I:%M %p %Z")
@@ -152,6 +172,9 @@ local function float(github_comments, pending_comments, enter, line1, line2)
     vim.cmd(
         string.format("syntax match GitHubDate /\\d\\d\\d\\d \\w\\w\\w \\d\\d \\d\\d:\\d\\d \\(AM\\|PM\\) \\w\\w\\w/")
     )
+    vim.cmd(
+        string.format("syntax match GitHubCommentLength /Comment on lines\\? +\\(\\d\\)\\+\\( to +\\(\\d\\)\\+\\)\\?/")
+    )
     vim.b.temp_file_name = temp_file_name
 
     if enter then
@@ -160,6 +183,7 @@ local function float(github_comments, pending_comments, enter, line1, line2)
         vim.cmd(string.format([[autocmd BufWipeout,BufHidden <buffer> exe 'bw %s']], bg_bufnr))
         vim.cmd [[augroup END]]
         vim.wo.winhl = "Normal:Floating"
+        vim.cmd [[command! -buffer -range PRCommentSave lua require("pr").save_comment()]]
     else
         vim.api.nvim_set_current_win(cwin)
         vim.lsp.util.close_preview_autocmd(

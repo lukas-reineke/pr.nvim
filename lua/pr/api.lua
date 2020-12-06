@@ -44,7 +44,8 @@ M.add_comment = function(repo, pr, comment)
             path = comment.filename,
             side = "RIGHT",
             start_side = "RIGHT",
-            line = comment.lnum
+            line = comment.lnum,
+            start_line = comment.lnum_start
         }
     )
     local headers, stream = assert(request:go(request_timeout))

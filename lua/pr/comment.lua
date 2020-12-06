@@ -1,4 +1,3 @@
-local floating_win = require "pr/floating_win"
 local util = require "pr/util"
 local M = {}
 
@@ -8,45 +7,6 @@ local get_path = function()
     local path = string.format("%s%s%s/%s", os.getenv("HOME"), "/.cache/nvim/pr.nvim/", git_base, git_branch)
 
     return path
-end
-
--- TODO: support not only floating win
-M.new = function(line1, line2)
-    local buf_name = vim.fn.expand("%"):gsub("/", "++")
-    local commit_id = util.readp("git rev-parse HEAD 2> /dev/null")[1]
-
-    local width = 80
-    local height = math.ceil(vim.o.lines * 0.8)
-    local row = math.ceil(vim.o.lines * 0.1)
-    local col = math.ceil((vim.o.columns / 2) - 40)
-
-    local bufnr = vim.api.nvim_create_buf(false, true)
-    local opt = {
-        relative = "editor",
-        row = row,
-        col = col,
-        width = width,
-        height = height,
-        style = "minimal"
-    }
-    local bg_opt = vim.tbl_extend("keep", {col = col - 1, row = row - 1}, opt)
-    local _, bg_bufnr = floating_win.open_border_win(bg_opt, "Normal:Floating")
-    local winnr = vim.api.nvim_open_win(bufnr, true, opt)
-    vim.wo.winhl = "Normal:Floating"
-    vim.cmd [[setlocal wrap]]
-
-    local file = string.format("%s++%d++%d++%s", buf_name, line1, line2, commit_id)
-    local path = get_path()
-    os.execute(string.format("mkdir -p %s", path))
-    vim.cmd(string.format("edit %s/%s", path, file))
-
-    vim.cmd [[set filetype=markdown]]
-
-    vim.cmd [[augroup PRComment]]
-    vim.cmd [[autocmd! * <buffer>]]
-    vim.cmd [[autocmd BufWritePost <buffer> lua require("pr").find_pending_comments()]]
-    vim.cmd(string.format([[autocmd BufWipeout,BufHidden <buffer> exe 'bw %s']], bg_bufnr))
-    vim.cmd [[augroup END]]
 end
 
 M.save_comment = function()
@@ -115,6 +75,7 @@ M.find = function()
         local parts = vim.split(file, "++")
         local commit_id = parts[#parts]
         parts[#parts] = nil
+        local lnum_start = tonumber(parts[#parts])
         parts[#parts] = nil
         local lnum = tonumber(parts[#parts])
         parts[#parts] = nil
@@ -126,6 +87,7 @@ M.find = function()
         comments[i] = {
             filename = filename:sub(#path + 3),
             lnum = lnum,
+            lnum_start = lnum_start,
             commit_id = commit_id,
             body = body
         }
@@ -144,10 +106,10 @@ M.delete_all_comments = function()
     os.execute("rm --recursive " .. path)
 end
 
-M.delete_comment = function(line1, line2)
+M.delete_comment = function(_, line2)
     local path = get_path()
     local buf_name = vim.fn.expand("%"):gsub("/", "++")
-    local file = string.format("%s++%d++%d++%s", buf_name, line1, line2, "*")
+    local file = string.format("%s++%d++%s", buf_name, line2, "*")
 
     if not dir_exists(path) then
         return {}
