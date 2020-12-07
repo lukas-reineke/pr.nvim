@@ -63,6 +63,8 @@ M.find = function()
         f:close()
 
         local parts = vim.split(file, "++")
+        local side = parts[#parts]
+        parts[#parts] = nil
         local commit_id = parts[#parts]
         parts[#parts] = nil
         local lnum_start = tonumber(parts[#parts])
@@ -79,7 +81,8 @@ M.find = function()
             lnum = lnum,
             lnum_start = lnum_start,
             commit_id = commit_id,
-            body = body
+            body = body,
+            side = side
         }
         ::continue::
     end

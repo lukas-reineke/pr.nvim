@@ -47,8 +47,8 @@ M.add_comment = function(repo, pr, comment)
             body = comment.body,
             commit_id = comment.commit_id,
             path = comment.filename,
-            side = "RIGHT",
-            start_side = "RIGHT",
+            side = comment.side,
+            start_side = comment.side,
             line = comment.lnum,
             start_line = start_line
         }

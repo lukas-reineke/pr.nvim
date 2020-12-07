@@ -13,7 +13,7 @@ M.setup = function()
     signs.setup()
     vim.cmd [[augroup PR]]
     vim.cmd [[autocmd!]]
-    vim.cmd [[autocmd BufReadPost lua require("pr").place_signs()]]
+    vim.cmd [[autocmd BufReadPost,BufDelete * lua require("pr").place_signs()]]
     vim.cmd [[augroup END]]
 
     vim.cmd [[command! -range PRCommentDelete lua require("pr").delete_comment(<line1>, <line2>)]]
@@ -28,6 +28,7 @@ M.load = function(repo, pr)
 end
 
 M.place_signs = function(opts)
+    signs.clear()
     return signs.place(M.github_comments, M.pending_comments, opts)
 end
 
@@ -45,7 +46,6 @@ M.set_quickfix = function(opts)
 end
 
 M.find_pending_comments = function()
-    signs.clear()
     M.pending_comments = comment.find()
     M.place_signs()
 end

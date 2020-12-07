@@ -61,7 +61,7 @@ local function float(github_comments, pending_comments, enter, line1, line2, sid
 
     -- TODO: move this into a function
     -- TODO: add side
-    temp_file_name = string.format("%s++%d++%d++%s", buf_name, line2, line1 or line2, commit_id)
+    temp_file_name = string.format("%s++%d++%d++%s++%s", buf_name, line2, line1 or line2, commit_id, side)
 
     if line1 ~= line2 then
         table.insert(lines, string.format("Comment on lines +%d to +%d side %s", line1, line2, first_comment.side))

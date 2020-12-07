@@ -28,4 +28,16 @@ function M.remove_undo()
     vim.bo.undolevels = undolevels
 end
 
+function M.buf_get_wins(bufnr)
+    local wins = {}
+
+    for _, winid in pairs(vim.api.nvim_list_wins()) do
+        if vim.api.nvim_win_get_buf(winid) == bufnr then
+            table.insert(wins, winid)
+        end
+    end
+
+    return wins
+end
+
 return M
