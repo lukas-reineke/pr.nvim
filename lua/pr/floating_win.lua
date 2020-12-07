@@ -35,20 +35,16 @@ local function insert_body(body, width, lines)
     end
 end
 
-local function float(github_comments, pending_comments, enter, line1, line2, args)
+local function float(github_comments, pending_comments, enter, line1, line2, side, buf_name)
     local lines = {}
     local width = 80
     local time_bias = date():getbias() * -1
-    local buf_name = vim.fn.expand("%"):gsub("/", "++")
     local commit_id = util.readp("git rev-parse HEAD 2> /dev/null")[1]
     local temp_file_name = ""
 
     -- TODO make function to parse arguments
     -- support for range would be nice
-    local first_comment = {side = "RIGHT"}
-    if #args > 0 and args[1] == "LEFT" then
-        first_comment.side = "LEFT"
-    end
+    local first_comment = {side = side}
     if #github_comments > 0 then
         first_comment = github_comments[1]
         line1 = github_comments[1].start_line
@@ -214,11 +210,40 @@ end
 
 M.open = function(github_comments, pending_comments, enter, line1, line2, args)
     local bufnr = vim.api.nvim_get_current_buf()
+    local winid = vim.fn.win_getid()
+    local bufname = vim.fn.bufname(bufnr)
     local cursor = vim.fn.getcurpos()
     local lnum = cursor[2] - 1
+    local side = "RIGHT"
+    local pick_side = vim.wo.diff
+    local fugitive = bufname:match("^fugitive:///")
     local valid_github_comments = {}
     local valid_pending_comments = {}
-    args = vim.split(args, " ")
+    if args ~= nil then
+        args = vim.split(args, " ")
+    else
+        args = {}
+    end
+
+    if fugitive then
+        side = "LEFT"
+        for _, cwinid in pairs(vim.api.nvim_list_wins()) do
+            if cwinid ~= winid and vim.api.nvim_win_get_option(cwinid, "diff") then
+                local cbufnr = vim.api.nvim_win_get_buf(cwinid)
+                local cbufname = vim.fn.bufname(cbufnr)
+                if bufname:find(cbufname, 1, true) then
+                    bufname = cbufname
+                    bufnr = cbufnr
+                    break
+                end
+            end
+        end
+    end
+
+    if #args > 0 and args[1] == "RIGHT" or args[1] == "LEFT" then
+        side = args[1]
+        pick_side = true
+    end
 
     for _, comment in pairs(github_comments) do
         local comment_bufnr = vim.fn.bufnr(comment.path)
@@ -226,6 +251,12 @@ M.open = function(github_comments, pending_comments, enter, line1, line2, args)
             goto continue
         end
         if lnum ~= comment.original_line - 1 then
+            goto continue
+        end
+
+        -- TODO: same for pendign comments
+        -- TODO: make this an option?
+        if pick_side and comment.side ~= side then
             goto continue
         end
 
@@ -249,7 +280,8 @@ M.open = function(github_comments, pending_comments, enter, line1, line2, args)
     end
 
     if (#valid_github_comments > 0 or #valid_pending_comments > 0) or enter then
-        local _, winnr = float(valid_github_comments, valid_pending_comments, enter, line1, line2, args)
+        local _, winnr =
+            float(valid_github_comments, valid_pending_comments, enter, line1, line2, side, bufname:gsub("/", "++"))
         if enter then
             util.remove_undo()
         else
