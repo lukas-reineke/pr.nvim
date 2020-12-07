@@ -37,6 +37,11 @@ M.add_comment = function(repo, pr, comment)
     request.headers:upsert(":method", "POST")
     request.headers:append("authorization", "token " .. os.getenv("GITHUB_TOKEN"))
     request.headers:append("accept", github_accept_header)
+
+    local start_line = nil
+    if comment.lnum_start ~= comment.lnum then
+        start_line = comment.lnum_start
+    end
     request:set_body(
         cjson.encode {
             body = comment.body,
@@ -45,7 +50,7 @@ M.add_comment = function(repo, pr, comment)
             side = "RIGHT",
             start_side = "RIGHT",
             line = comment.lnum,
-            start_line = comment.lnum_start
+            start_line = start_line
         }
     )
     local headers, stream = assert(request:go(request_timeout))

@@ -40,21 +40,11 @@ M.save_comment = function()
     io.close(file)
 end
 
-local function dir_exists(file)
-    local ok, err, code = os.rename(file, file)
-    if not ok then
-        if code == 13 then
-            return true
-        end
-    end
-    return ok, err
-end
-
 M.find = function()
     local files = {}
     local path = get_path()
 
-    if not dir_exists(path) then
+    if not util.path_exists(path) then
         return {}
     end
 
@@ -100,7 +90,7 @@ end
 M.delete_all_comments = function()
     local path = get_path()
 
-    if not dir_exists(path) then
+    if not util.path_exists(path) then
         return
     end
     os.execute("rm --recursive " .. path)
@@ -111,7 +101,7 @@ M.delete_comment = function(_, line2)
     local buf_name = vim.fn.expand("%"):gsub("/", "++")
     local file = string.format("%s++%d++%s", buf_name, line2, "*")
 
-    if not dir_exists(path) then
+    if not util.path_exists(path) then
         return {}
     end
 

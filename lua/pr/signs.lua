@@ -3,8 +3,9 @@ local M = {}
 local github_sign_namespace = "github_sign_namespace"
 
 M.setup = function()
-    vim.fn.sign_define("PRGitHubComment", {text = "", texthl = "GitGutterChange"})
-    vim.fn.sign_define("PRNewComment", {text = "", texthl = "GitGutterAdd"})
+    vim.fn.sign_define("PRGitHubComment", {text = "C", texthl = "GitGutterChange"})
+    -- vim.fn.sign_define("PRGitHubComment", {text = "", texthl = "GitGutterChange"})
+    vim.fn.sign_define("PRNewComment", {text = "C", texthl = "GitGutterAdd"})
 end
 
 M.place_github = function(comments)

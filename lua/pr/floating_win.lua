@@ -35,38 +35,44 @@ local function insert_body(body, width, lines)
     end
 end
 
-local function float(github_comments, pending_comments, enter, line1, line2)
+local function float(github_comments, pending_comments, enter, line1, line2, args)
     local lines = {}
     local width = 80
     local time_bias = date():getbias() * -1
     local buf_name = vim.fn.expand("%"):gsub("/", "++")
     local commit_id = util.readp("git rev-parse HEAD 2> /dev/null")[1]
     local temp_file_name = ""
-    if line1 ~= nil then
-        temp_file_name = string.format("%s++%d++%d++%s", buf_name, line2, line1, commit_id)
-    end
 
-    if #github_comments > 0 and github_comments[1].start_line ~= cjson.null then
-        table.insert(
-            lines,
-            string.format("Comment on lines +%d to +%d", github_comments[1].start_line, github_comments[1].line)
-        )
+    -- TODO make function to parse arguments
+    -- support for range would be nice
+    local first_comment = {side = "RIGHT"}
+    if #args > 0 and args[1] == "LEFT" then
+        first_comment.side = "LEFT"
+    end
+    if #github_comments > 0 then
+        first_comment = github_comments[1]
         line1 = github_comments[1].start_line
         line2 = github_comments[1].line
-    elseif
-        #github_comments == 0 and #pending_comments > 0 and pending_comments[1].lnum_start ~= pending_comments[1].lnum
-     then
-        table.insert(
-            lines,
-            string.format("Comment on lines +%d to +%d", pending_comments[1].lnum_start, pending_comments[1].lnum)
-        )
+    elseif #pending_comments > 0 then
+        first_comment = pending_comments[1]
         line1 = pending_comments[1].lnum_start
         line2 = pending_comments[1].lnum
-    elseif line1 ~= line2 then
-        table.insert(lines, string.format("Comment on lines +%d to +%d", line1, line2))
-    elseif enter then
-        table.insert(lines, string.format("Comment on line +%d", line1))
     end
+
+    if line1 == cjson.null then
+        line1 = line2
+    end
+
+    -- TODO: move this into a function
+    -- TODO: add side
+    temp_file_name = string.format("%s++%d++%d++%s", buf_name, line2, line1 or line2, commit_id)
+
+    if line1 ~= line2 then
+        table.insert(lines, string.format("Comment on lines +%d to +%d side %s", line1, line2, first_comment.side))
+    else
+        table.insert(lines, string.format("Comment on line +%d side %s", line1, first_comment.side))
+    end
+
     table.insert(lines, "")
 
     for _, comment in pairs(github_comments) do
@@ -178,7 +184,9 @@ local function float(github_comments, pending_comments, enter, line1, line2)
         string.format("syntax match GitHubDate /\\d\\d\\d\\d \\w\\w\\w \\d\\d \\d\\d:\\d\\d \\(AM\\|PM\\) \\w\\w\\w/")
     )
     vim.cmd(
-        string.format("syntax match GitHubCommentLength /Comment on lines\\? +\\(\\d\\)\\+\\( to +\\(\\d\\)\\+\\)\\?/")
+        string.format(
+            "syntax match GitHubCommentLength /Comment on lines\\? +\\(\\d\\)\\+\\( to +\\(\\d\\)\\+\\)\\?\\( side \\(LEFT\\|RIGHT\\)\\)\\?/"
+        )
     )
     vim.b.temp_file_name = temp_file_name
     vim.b.line1 = line1
@@ -204,12 +212,13 @@ local function float(github_comments, pending_comments, enter, line1, line2)
     return bufnr, winnr
 end
 
-M.open = function(github_comments, pending_comments, enter, line1, line2)
+M.open = function(github_comments, pending_comments, enter, line1, line2, args)
     local bufnr = vim.api.nvim_get_current_buf()
     local cursor = vim.fn.getcurpos()
     local lnum = cursor[2] - 1
     local valid_github_comments = {}
     local valid_pending_comments = {}
+    args = vim.split(args, " ")
 
     for _, comment in pairs(github_comments) do
         local comment_bufnr = vim.fn.bufnr(comment.path)
@@ -239,12 +248,16 @@ M.open = function(github_comments, pending_comments, enter, line1, line2)
         ::continue::
     end
 
-    local _, winnr = float(valid_github_comments, valid_pending_comments, enter, line1, line2)
-    if not enter then
-        vim.lsp.util.close_preview_autocmd(
-            {"CursorMoved", "CursorMovedI", "BufHidden", "BufLeave", "WinScrolled"},
-            winnr
-        )
+    if (#valid_github_comments > 0 or #valid_pending_comments > 0) or enter then
+        local _, winnr = float(valid_github_comments, valid_pending_comments, enter, line1, line2, args)
+        if enter then
+            util.remove_undo()
+        else
+            vim.lsp.util.close_preview_autocmd(
+                {"CursorMoved", "CursorMovedI", "BufHidden", "BufLeave", "WinScrolled"},
+                winnr
+            )
+        end
     end
 end
 
