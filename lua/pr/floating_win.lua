@@ -134,7 +134,7 @@ local function float(github_comments, pending_comments, enter, line1, line2, sid
         }
         bg_opt = vim.tbl_extend("keep", {col = col - 2, row = row - 1}, opt)
     else
-        opt = vim.lsp.util.make_floating_popup_options(width, #lines, {})
+        opt = vim.lsp.util.make_floating_popup_options(width, M.get_preview_height(#lines), {})
         bg_opt = vim.tbl_extend("keep", {}, opt)
 
         if opt.anchor == "NW" then
@@ -281,7 +281,6 @@ M.open = function(github_comments, pending_comments, enter, line1, line2, args)
     end
 end
 
--- TODO: fix max height
 M.open_border_win = function(opt, winhl)
     local cwin = vim.api.nvim_get_current_win()
     local bg_bufnr = vim.api.nvim_create_buf(false, true)
@@ -301,6 +300,13 @@ M.open_border_win = function(opt, winhl)
     vim.api.nvim_set_current_win(cwin)
 
     return bg_winnr, bg_bufnr
+end
+
+M.get_preview_height = function(height)
+    local lines_above = vim.fn.winline() - 1
+    local lines_below = vim.fn.winheight(0) - lines_above
+
+    return math.min(height, math.max(lines_above, lines_below) - 2)
 end
 
 return M
