@@ -12,13 +12,26 @@ function M.readp(cmd)
 end
 
 function M.path_exists(path)
-    local ok, err, code = os.rename(path, path)
+    local ok, _, code = os.rename(path, path)
     if not ok then
         if code == 13 then
             return true
         end
     end
-    return ok, err
+    return ok
+end
+
+function M.concat(tablea, tableb)
+    local result = {}
+
+    for _, v in pairs(tablea) do
+        table.insert(result, v)
+    end
+    for _, v in pairs(tableb) do
+        table.insert(result, v)
+    end
+
+    return result
 end
 
 function M.remove_undo()
@@ -38,6 +51,31 @@ function M.buf_get_wins(bufnr)
     end
 
     return wins
+end
+
+function M.get_fugitive_buffer(bufnr, bufname, reverse)
+    local check
+    if reverse then
+        check = function(name, cname)
+            return name:find(cname, 1, true)
+        end
+    else
+        check = function(name, cname)
+            return cname:find(name, 1, true)
+        end
+    end
+
+    for _, cwinid in pairs(vim.api.nvim_list_wins()) do
+        if vim.api.nvim_win_get_option(cwinid, "diff") then
+            local cbufnr = vim.api.nvim_win_get_buf(cwinid)
+            local cbufname = vim.fn.bufname(cbufnr)
+            if cbufname ~= bufname and check(bufname, cbufname) then
+                return cbufnr, cbufname
+            end
+        end
+    end
+
+    return bufnr, bufname
 end
 
 return M

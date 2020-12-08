@@ -6,12 +6,17 @@ M.set = function(comments, opts)
     local items = {}
 
     for _, comment in pairs(comments) do
+        local login = "Pending"
+        if comment.user ~= nil then
+            login = "@" .. comment.user.login
+        end
+
         table.insert(
             items,
             {
                 filename = comment.path,
                 lnum = comment.original_line,
-                text = "@" .. comment.user.login .. ": " .. comment.body:gsub("\r", ""):gsub("\n", " ")
+                text = login .. ": " .. comment.body:gsub("\r", ""):gsub("\n", "  ")
             }
         )
     end

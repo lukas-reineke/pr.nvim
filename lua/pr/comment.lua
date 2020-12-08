@@ -41,48 +41,44 @@ M.save_comment = function()
 end
 
 M.find = function()
-    local files = {}
-    local path = get_path()
+    local comments = {}
+    local temp_path = get_path()
 
-    if not util.path_exists(path) then
+    if not util.path_exists(temp_path) then
         return {}
     end
 
-    local filenames = util.readp(string.format("find %s/* -maxdepth 1 2> /dev/null", path))
-    for _, filename in pairs(filenames) do
-        table.insert(files, filename)
-    end
-
-    local comments = {}
-    for i, file in pairs(files) do
-        local f = io.open(file, "rb")
-        if not f then
+    local filenames = util.readp(string.format("find %s/* -maxdepth 1 2> /dev/null", temp_path))
+    for i, filename in pairs(filenames) do
+        local file = io.open(filename, "rb")
+        if not file then
             goto continue
         end
-        local body = f:read "*a"
-        f:close()
+        local body = file:read "*a"
+        file:close()
 
-        local parts = vim.split(file, "++")
+        local parts = vim.split(filename, "++")
         local side = parts[#parts]
         parts[#parts] = nil
         local commit_id = parts[#parts]
         parts[#parts] = nil
-        local lnum_start = tonumber(parts[#parts])
+        local start_line = tonumber(parts[#parts])
         parts[#parts] = nil
-        local lnum = tonumber(parts[#parts])
+        local original_line = tonumber(parts[#parts])
         parts[#parts] = nil
-        local filename = ""
+        local path = ""
         for _, part in pairs(parts) do
-            filename = string.format("%s/%s", filename, part)
+            path = string.format("%s/%s", path, part)
         end
 
         comments[i] = {
-            filename = filename:sub(#path + 3),
-            lnum = lnum,
-            lnum_start = lnum_start,
+            path = path:sub(#temp_path + 3),
+            original_line = original_line,
+            start_line = start_line,
             commit_id = commit_id,
             body = body,
-            side = side
+            side = side,
+            pending = true
         }
         ::continue::
     end

@@ -3,6 +3,7 @@ local floating_win = require "pr/floating_win"
 local api = require "pr/api"
 local quickfix = require "pr/quickfix"
 local comment = require "pr/comment"
+local util = require "pr/util"
 
 local M = {}
 
@@ -27,9 +28,9 @@ M.load = function(repo, pr)
     M.find_pending_comments()
 end
 
-M.place_signs = function(opts)
+M.place_signs = function()
     signs.clear()
-    return signs.place(M.github_comments, M.pending_comments, opts)
+    return signs.place(util.concat(M.github_comments, M.pending_comments))
 end
 
 M.open_floating_win = function(enter, line1, line2, args)
@@ -42,7 +43,7 @@ M.save_comment = function()
 end
 
 M.set_quickfix = function(opts)
-    return quickfix.set(M.github_comments, opts)
+    return quickfix.set(util.concat(M.github_comments, M.pending_comments), opts)
 end
 
 M.find_pending_comments = function()

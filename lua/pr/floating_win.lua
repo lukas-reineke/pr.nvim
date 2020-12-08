@@ -1,6 +1,6 @@
 local date = require "date"
-local util = require "pr/util"
 local cjson = require "cjson"
+local util = require "pr/util"
 
 local M = {}
 
@@ -48,11 +48,11 @@ local function float(github_comments, pending_comments, enter, line1, line2, sid
     if #github_comments > 0 then
         first_comment = github_comments[1]
         line1 = github_comments[1].start_line
-        line2 = github_comments[1].line
+        line2 = github_comments[1].original_line
     elseif #pending_comments > 0 then
         first_comment = pending_comments[1]
-        line1 = pending_comments[1].lnum_start
-        line2 = pending_comments[1].lnum
+        line1 = pending_comments[1].start_line
+        line2 = pending_comments[1].original_line
     end
 
     if line1 == cjson.null then
@@ -60,7 +60,6 @@ local function float(github_comments, pending_comments, enter, line1, line2, sid
     end
 
     -- TODO: move this into a function
-    -- TODO: add side
     temp_file_name = string.format("%s++%d++%d++%s++%s", buf_name, line2, line1 or line2, commit_id, side)
 
     if line1 ~= line2 then
@@ -73,7 +72,7 @@ local function float(github_comments, pending_comments, enter, line1, line2, sid
 
     for _, comment in pairs(github_comments) do
         local created_at = " " .. date(comment.created_at):addminutes(time_bias):fmt("%Y %b %d %I:%M %p %Z")
-        local user_name = "@" .. comment.user.login .. " "
+        local user_name = string.format("@%s %s ", comment.user.login, comment.author_association)
         local spacer = ("─"):rep(width - #user_name - #created_at)
         table.insert(lines, user_name .. spacer .. created_at)
         table.insert(lines, "")
@@ -175,14 +174,13 @@ local function float(github_comments, pending_comments, enter, line1, line2, sid
     else
         vim.cmd("setlocal nowrap")
     end
-    vim.cmd(string.format("syntax match GitHubUserName /@[^ ]\\+/"))
+    vim.cmd("syntax match GitHubUserName /@[^ ]\\+/")
     vim.cmd(
-        string.format("syntax match GitHubDate /\\d\\d\\d\\d \\w\\w\\w \\d\\d \\d\\d:\\d\\d \\(AM\\|PM\\) \\w\\w\\w/")
+        "syntax match GitHubAuthorAssociation /\\(COLLABORATOR\\|CONTRIBUTOR\\|FIRST_TIMER\\|FIRST_TIME_CONTRIBUTOR\\|MANNEQUIN\\|MEMBER\\|NONE\\|OWNER\\)/"
     )
+    vim.cmd("syntax match GitHubDate /\\d\\d\\d\\d \\w\\w\\w \\d\\d \\d\\d:\\d\\d \\(AM\\|PM\\) \\w\\w\\w/")
     vim.cmd(
-        string.format(
-            "syntax match GitHubCommentLength /Comment on lines\\? +\\(\\d\\)\\+\\( to +\\(\\d\\)\\+\\)\\?\\( side \\(LEFT\\|RIGHT\\)\\)\\?/"
-        )
+        "syntax match GitHubCommentLength /Comment on lines\\? +\\(\\d\\)\\+\\( to +\\(\\d\\)\\+\\)\\?\\( side \\(LEFT\\|RIGHT\\)\\)\\?/"
     )
     vim.b.temp_file_name = temp_file_name
     vim.b.line1 = line1
@@ -210,7 +208,6 @@ end
 
 M.open = function(github_comments, pending_comments, enter, line1, line2, args)
     local bufnr = vim.api.nvim_get_current_buf()
-    local winid = vim.fn.win_getid()
     local bufname = vim.fn.bufname(bufnr)
     local cursor = vim.fn.getcurpos()
     local lnum = cursor[2] - 1
@@ -227,17 +224,8 @@ M.open = function(github_comments, pending_comments, enter, line1, line2, args)
 
     if fugitive then
         side = "LEFT"
-        for _, cwinid in pairs(vim.api.nvim_list_wins()) do
-            if cwinid ~= winid and vim.api.nvim_win_get_option(cwinid, "diff") then
-                local cbufnr = vim.api.nvim_win_get_buf(cwinid)
-                local cbufname = vim.fn.bufname(cbufnr)
-                if bufname:find(cbufname, 1, true) then
-                    bufname = cbufname
-                    bufnr = cbufnr
-                    break
-                end
-            end
-        end
+        -- add the comment to the real file
+        bufnr, bufname = util.get_fugitive_buffer(bufnr, bufname, true)
     end
 
     if #args > 0 and args[1] == "RIGHT" or args[1] == "LEFT" then
@@ -266,11 +254,11 @@ M.open = function(github_comments, pending_comments, enter, line1, line2, args)
     end
 
     for _, comment in pairs(pending_comments) do
-        local comment_bufnr = vim.fn.bufnr(comment.filename)
+        local comment_bufnr = vim.fn.bufnr(comment.path)
         if bufnr ~= comment_bufnr then
             goto continue
         end
-        if lnum ~= comment.lnum - 1 then
+        if lnum ~= comment.original_line - 1 then
             goto continue
         end
 
