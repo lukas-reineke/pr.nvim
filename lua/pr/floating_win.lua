@@ -15,21 +15,22 @@ local reaction_map = {
     ["eyes"] = "👀"
 }
 
-local function insert_body(body, width, lines)
-    local padding = " "
+local function insert_body(body, width, lines, format)
+    local padding = ""
+    if format then
+        padding = " "
+    end
+
     for _, line in pairs(vim.split(vim.trim(body), "\n")) do
         line = padding .. line:gsub("\r", "")
-        if #line > width then
-            while #line > width do
-                local trimmed_line = string.sub(line, 1, width)
-                local index = trimmed_line:reverse():find(" ")
-                if index == nil or index > #trimmed_line / 2 then
-                    break
-                else
-                    table.insert(lines, string.sub(line, 1, width - index))
-                    line = padding .. string.sub(line, width - index + 2, #line)
-                end
+        while format and #line > width do
+            local trimmed_line = string.sub(line, 1, width)
+            local index = trimmed_line:reverse():find(" ")
+            if index == nil or index > #trimmed_line / 2 then
+                break
             end
+            table.insert(lines, string.sub(line, 1, width - index))
+            line = padding .. string.sub(line, width - index + 2, #line)
         end
         table.insert(lines, line)
     end
@@ -76,7 +77,7 @@ local function float(github_comments, pending_comments, enter, line1, line2, sid
         local spacer = ("─"):rep(width - #user_name - #created_at)
         table.insert(lines, user_name .. spacer .. created_at)
         table.insert(lines, "")
-        insert_body(comment.body, width, lines)
+        insert_body(comment.body, width, lines, true)
         table.insert(lines, "")
 
         if comment.reactions.total_count > 0 then
@@ -104,14 +105,7 @@ local function float(github_comments, pending_comments, enter, line1, line2, sid
         table.insert(lines, user_name .. spacer)
         table.insert(lines, "")
 
-        if enter then
-            for _, line in pairs(vim.split(vim.trim(comment.body), "\n")) do
-                line = line:gsub("\r", "")
-                table.insert(lines, line)
-            end
-        else
-            insert_body(vim.trim(comment.body), width, lines)
-        end
+        insert_body(comment.body, width, lines, not enter)
 
         if not enter then
             table.insert(lines, "")
@@ -137,6 +131,7 @@ local function float(github_comments, pending_comments, enter, line1, line2, sid
         opt = vim.lsp.util.make_floating_popup_options(width, M.get_preview_height(#lines), {})
         bg_opt = vim.tbl_extend("keep", {}, opt)
 
+        -- adjust for border
         if opt.anchor == "NW" then
             opt.row = opt.row + 1
             opt.col = opt.col + 2
@@ -156,12 +151,14 @@ local function float(github_comments, pending_comments, enter, line1, line2, sid
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
     local winnr = vim.api.nvim_open_win(bufnr, false, opt)
 
-    local bg_winnr, bg_bufnr
+    local winhl
     if enter then
-        bg_winnr, bg_bufnr = M.open_border_win(bg_opt, "Normal:Floating")
+        winhl = "Normal:Floating"
     else
-        bg_winnr, bg_bufnr = M.open_border_win(bg_opt, "Normal:WinNormalNC")
+        winhl = "Normal:WinNormalNC"
     end
+
+    local bg_winnr, bg_bufnr = M.open_border_win(bg_opt, winhl)
 
     local cwin = vim.api.nvim_get_current_win()
     local cbufnr = vim.api.nvim_get_current_buf()
@@ -182,17 +179,20 @@ local function float(github_comments, pending_comments, enter, line1, line2, sid
     vim.cmd(
         "syntax match GitHubCommentLength /Comment on lines\\? +\\(\\d\\)\\+\\( to +\\(\\d\\)\\+\\)\\?\\( side \\(LEFT\\|RIGHT\\)\\)\\?/"
     )
+
+    -- TODO: clean this up
     vim.b.temp_file_name = temp_file_name
     vim.b.line1 = line1
     vim.b.line2 = line2
     vim.b.bufnr = cbufnr
+
+    vim.wo.winhl = winhl
 
     if enter then
         vim.cmd [[augroup PRComment]]
         vim.cmd [[autocmd! * <buffer>]]
         vim.cmd(string.format([[autocmd BufWipeout,BufHidden <buffer> exe 'bw %s']], bg_bufnr))
         vim.cmd [[augroup END]]
-        vim.wo.winhl = "Normal:Floating"
         vim.cmd [[command! -buffer -range PRCommentSave lua require("pr").save_comment()]]
         vim.cmd [[command! -buffer -range PRCommentSuggest lua require("pr/comment").suggestion()]]
     else
@@ -206,7 +206,7 @@ local function float(github_comments, pending_comments, enter, line1, line2, sid
     return bufnr, winnr
 end
 
-M.open = function(github_comments, pending_comments, enter, line1, line2, args)
+M.open = function(comments, enter, line1, line2, args)
     local bufnr = vim.api.nvim_get_current_buf()
     local bufname = vim.fn.bufname(bufnr)
     local cursor = vim.fn.getcurpos()
@@ -224,7 +224,6 @@ M.open = function(github_comments, pending_comments, enter, line1, line2, args)
 
     if fugitive then
         side = "LEFT"
-        -- add the comment to the real file
         bufnr, bufname = util.get_fugitive_buffer(bufnr, bufname, true)
     end
 
@@ -233,7 +232,7 @@ M.open = function(github_comments, pending_comments, enter, line1, line2, args)
         pick_side = true
     end
 
-    for _, comment in pairs(github_comments) do
+    for _, comment in pairs(comments) do
         local comment_bufnr = vim.fn.bufnr(comment.path)
         if bufnr ~= comment_bufnr then
             goto continue
@@ -242,29 +241,27 @@ M.open = function(github_comments, pending_comments, enter, line1, line2, args)
             goto continue
         end
 
-        -- TODO: same for pendign comments
         -- TODO: make this an option?
         if pick_side and comment.side ~= side then
             goto continue
         end
 
-        table.insert(valid_github_comments, comment)
+        if comment.pending then
+            table.insert(valid_pending_comments, comment)
+        else
+            table.insert(valid_github_comments, comment)
+        end
 
         ::continue::
     end
 
-    for _, comment in pairs(pending_comments) do
-        local comment_bufnr = vim.fn.bufnr(comment.path)
-        if bufnr ~= comment_bufnr then
-            goto continue
+    if #valid_pending_comments > 1 then
+        for _, comment in pairs(valid_pending_comments) do
+            if comment.side == side then
+                valid_pending_comments = {comment}
+                break
+            end
         end
-        if lnum ~= comment.original_line - 1 then
-            goto continue
-        end
-
-        table.insert(valid_pending_comments, comment)
-
-        ::continue::
     end
 
     if (#valid_github_comments > 0 or #valid_pending_comments > 0) or enter then

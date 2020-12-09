@@ -19,7 +19,7 @@ M.setup = function()
 
     vim.cmd [[command! -range PRCommentDelete lua require("pr").delete_comment(<line1>, <line2>)]]
     vim.cmd [[command! -range -nargs=* PRComment lua require("pr").open_floating_win(true, <line1>, <line2>, "<args>")]]
-    vim.cmd [[command! -range PRCommentPreview lua require("pr").open_floating_win(false, <line1>, <line2>)]]
+    vim.cmd [[command! -range -nargs=* PRCommentPreview lua require("pr").open_floating_win(false, <line1>, <line2>, "<args>")]]
 end
 
 M.load = function(repo, pr)
@@ -34,7 +34,7 @@ M.place_signs = function()
 end
 
 M.open_floating_win = function(enter, line1, line2, args)
-    return floating_win.open(M.github_comments, M.pending_comments, enter, line1, line2, args)
+    return floating_win.open(util.concat(M.github_comments, M.pending_comments), enter, line1, line2, args)
 end
 
 M.save_comment = function()
