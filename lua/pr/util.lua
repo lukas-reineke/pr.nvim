@@ -1,3 +1,5 @@
+local date_ok, date = pcall(require, "date")
+
 local M = {}
 
 function M.readp(cmd)
@@ -76,6 +78,15 @@ function M.get_fugitive_buffer(bufnr, bufname, reverse)
     end
 
     return bufnr, bufname
+end
+
+function M.format_date(to_format)
+    if not date_ok then
+        return to_format
+    end
+
+    local time_bias = date():getbias() * -1
+    return date(to_format):addminutes(time_bias):fmt("%Y %b %d %I:%M %p %Z")
 end
 
 return M

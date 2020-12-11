@@ -1,66 +1,55 @@
-local http_request = require "http.request"
-local cjson = require "cjson"
+local gh = require "octo.gh"
+
+local f = string.format
+local json = {
+    parse = vim.fn.json_decode,
+    stringify = vim.fn.json_encode
+}
 
 local M = {}
 
-local request_timeout = 5
 local github_accept_header =
-    "application/vnd.github.v3+json;application/vnd.github.comfort-fade-preview+json;application/vnd.github.squirrel-girl-preview"
+    "accept:application/vnd.github.v3+json;application/vnd.github.comfort-fade-preview+json;application/vnd.github.squirrel-girl-preview"
 
--- TODO: abstract api function
--- TODO: paging
-M.load = function(repo, pr)
-    local url = string.format("https://api.github.com/repos/%s/pulls/%d/comments", repo, pr)
-    local request = http_request.new_from_uri(url)
-    request.headers:append("authorization", "token " .. os.getenv("GITHUB_TOKEN"))
-    request.headers:append("accept", github_accept_header)
-    local headers, stream = assert(request:go(request_timeout))
-    local body = assert(stream:get_body_as_string())
-    if headers:get ":status" ~= "200" then
-        error(body)
-    end
-    local comments = cjson.decode(body)
-
-    table.sort(
-        comments,
-        function(a, b)
-            return a.created_at < b.created_at
+M.load_gh = function(repo, pr, cb)
+    gh.run {
+        args = {"api", f("repos/%s/pulls/%d/comments", repo, pr), "-H", github_accept_header, "--paginate"},
+        cb = function(response)
+            local resp = json.parse(response)
+            cb(resp)
         end
-    )
-
-    return comments
+    }
 end
 
 M.add_comment = function(repo, pr, comment)
-    local url = string.format("https://api.github.com/repos/%s/pulls/%d/comments", repo, pr)
-    local request = http_request.new_from_uri(url)
-    request.headers:upsert(":method", "POST")
-    request.headers:append("authorization", "token " .. os.getenv("GITHUB_TOKEN"))
-    request.headers:append("accept", github_accept_header)
-
-    local start_line = nil
-    if comment.lnum_start ~= comment.lnum then
-        start_line = comment.lnum_start
+    local args = {
+        "api",
+        f("repos/%s/pulls/%d/comments", repo, pr),
+        "-H",
+        github_accept_header,
+        "--method",
+        "POST",
+        "--field",
+        "body=" .. comment.body,
+        "--field",
+        "commit_id=" .. comment.commit_id,
+        "--field",
+        "path=" .. comment.path,
+        "--field",
+        "side=" .. comment.side,
+        "--field",
+        "start_side=" .. comment.side,
+        "--field",
+        "line=" .. comment.original_line
+    }
+    if comment.start_line ~= comment.original_line then
+        table.insert(args, "--field start_line=" .. comment.start_line)
     end
-    request:set_body(
-        cjson.encode {
-            body = comment.body,
-            commit_id = comment.commit_id,
-            path = comment.filename,
-            side = comment.side,
-            start_side = comment.side,
-            line = comment.lnum,
-            start_line = start_line
-        }
-    )
-    local headers, stream = assert(request:go(request_timeout))
-    local body = assert(stream:get_body_as_string())
-    if headers:get ":status" ~= "201" then
-        error(body)
-    end
-    local comments = cjson.decode(body)
 
-    return comments
+    gh.run {
+        args = args,
+        mode = "sync"
+    }
 end
 
 return M

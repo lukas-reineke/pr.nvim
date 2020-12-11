@@ -23,9 +23,15 @@ M.setup = function()
 end
 
 M.load = function(repo, pr)
-    M.github_comments = api.load(repo, pr)
+    api.load_gh(
+        repo,
+        pr,
+        function(comments)
+            M.github_comments = comments
 
-    M.find_pending_comments()
+            M.find_pending_comments()
+        end
+    )
 end
 
 M.place_signs = function()

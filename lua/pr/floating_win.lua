@@ -1,28 +1,23 @@
-local date = require "date"
-local cjson = require "cjson"
 local util = require "pr/util"
+
+local f = string.format
 
 local M = {}
 
 local reaction_map = {
     ["+1"] = "👍",
     ["-1"] = "👎",
-    ["laugh"] = "😀",
+    ["laugh"] = "😄",
     ["hooray"] = "🎉",
-    ["confused"] = "☹️",
+    ["confused"] = "😕",
     ["heart"] = "❤️",
     ["rocket"] = "🚀",
     ["eyes"] = "👀"
 }
 
 local function insert_body(body, width, lines, format)
-    local padding = ""
-    if format then
-        padding = " "
-    end
-
     for _, line in pairs(vim.split(vim.trim(body), "\n")) do
-        line = padding .. line:gsub("\r", "")
+        line = line:gsub("\r", "")
         while format and #line > width do
             local trimmed_line = string.sub(line, 1, width)
             local index = trimmed_line:reverse():find(" ")
@@ -30,7 +25,7 @@ local function insert_body(body, width, lines, format)
                 break
             end
             table.insert(lines, string.sub(line, 1, width - index))
-            line = padding .. string.sub(line, width - index + 2, #line)
+            line = string.sub(line, width - index + 2, #line)
         end
         table.insert(lines, line)
     end
@@ -39,7 +34,6 @@ end
 local function float(github_comments, pending_comments, enter, line1, line2, side, buf_name)
     local lines = {}
     local width = 80
-    local time_bias = date():getbias() * -1
     local commit_id = util.readp("git rev-parse HEAD 2> /dev/null")[1]
     local temp_file_name = ""
 
@@ -56,24 +50,24 @@ local function float(github_comments, pending_comments, enter, line1, line2, sid
         line2 = pending_comments[1].original_line
     end
 
-    if line1 == cjson.null then
+    if line1 == vim.NIL then
         line1 = line2
     end
 
     -- TODO: move this into a function
-    temp_file_name = string.format("%s++%d++%d++%s++%s", buf_name, line2, line1 or line2, commit_id, side)
+    temp_file_name = f("%s++%d++%d++%s++%s", buf_name, line2, line1 or line2, commit_id, side)
 
     if line1 ~= line2 then
-        table.insert(lines, string.format("Comment on lines +%d to +%d side %s", line1, line2, first_comment.side))
+        table.insert(lines, f("Comment on lines +%d to +%d side %s", line1, line2, first_comment.side))
     else
-        table.insert(lines, string.format("Comment on line +%d side %s", line1, first_comment.side))
+        table.insert(lines, f("Comment on line +%d side %s", line1, first_comment.side))
     end
 
     table.insert(lines, "")
 
     for _, comment in pairs(github_comments) do
-        local created_at = " " .. date(comment.created_at):addminutes(time_bias):fmt("%Y %b %d %I:%M %p %Z")
-        local user_name = string.format("@%s %s ", comment.user.login, comment.author_association)
+        local created_at = " " .. util.format_date(comment.created_at)
+        local user_name = f("@%s %s ", comment.user.login, comment.author_association)
         local spacer = ("─"):rep(width - #user_name - #created_at)
         table.insert(lines, user_name .. spacer .. created_at)
         table.insert(lines, "")
@@ -84,7 +78,12 @@ local function float(github_comments, pending_comments, enter, line1, line2, sid
             local reactions = ""
             for r, count in pairs(comment.reactions) do
                 if r ~= "total_count" and r ~= "url" and count > 0 then
-                    reactions = string.format("%s  %s%d", reactions, reaction_map[r], count)
+                    local reaction = f(" %s%d", reaction_map[r], count)
+                    if #reactions > 0 then
+                        reactions = ("%s %s"):format(reactions, reaction)
+                    else
+                        reactions = reaction
+                    end
                 end
             end
             table.insert(lines, reactions)
@@ -191,7 +190,7 @@ local function float(github_comments, pending_comments, enter, line1, line2, sid
     if enter then
         vim.cmd [[augroup PRComment]]
         vim.cmd [[autocmd! * <buffer>]]
-        vim.cmd(string.format([[autocmd BufWipeout,BufHidden <buffer> exe 'bw %s']], bg_bufnr))
+        vim.cmd(f([[autocmd BufWipeout,BufHidden <buffer> exe 'bw %s']], bg_bufnr))
         vim.cmd [[augroup END]]
         vim.cmd [[command! -buffer -range PRCommentSave lua require("pr").save_comment()]]
         vim.cmd [[command! -buffer -range PRCommentSuggest lua require("pr/comment").suggestion()]]
