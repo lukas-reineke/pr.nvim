@@ -1,4 +1,5 @@
 local util = require "pr/util"
+local floating_win = require "pr/floating_win"
 local M = {}
 
 local get_path = function()
@@ -7,6 +8,51 @@ local get_path = function()
     local path = string.format("%s%s%s/%s", os.getenv("HOME"), "/.cache/nvim/pr.nvim/", git_base, git_branch)
 
     return path
+end
+
+M.open_comment = function(comments, opts)
+    local bufnr = vim.api.nvim_get_current_buf()
+    local bufname = vim.fn.bufname(bufnr)
+    local side = "RIGHT"
+    local pick_side = vim.wo.diff or (opts.side ~= nil)
+    local fugitive = bufname:match("^fugitive:///")
+
+    if opts.side == "LEFT" then
+        side = "LEFT"
+    end
+    if fugitive then
+        side = "LEFT"
+        bufnr, bufname = util.get_fugitive_buffer(bufnr, bufname, true)
+    end
+
+    local ccomment
+
+    for _, comment in pairs(comments) do
+        local comment_bufnr = vim.fn.bufnr(comment[1].path)
+        if bufnr ~= comment_bufnr then
+            goto continue
+        end
+        if opts.line1 ~= comment[1].original_line then
+            goto continue
+        end
+        if opts.line1 ~= opts.line2 then
+            if opts.line2 ~= comment[1].start_line then
+                goto continue
+            end
+        end
+        if pick_side and comment[1].side ~= side then
+            goto continue
+        end
+
+        if true then
+            ccomment = comment
+            break
+        end
+
+        ::continue::
+    end
+
+    floating_win.open(ccomment, opts)
 end
 
 M.save_comment = function()

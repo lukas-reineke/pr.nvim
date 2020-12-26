@@ -31,6 +31,151 @@ local function insert_body(body, width, lines, format)
     end
 end
 
+M.open = function(comments, opts)
+    local lines = {}
+    local width = 80
+    local first_comment = comments[1]
+
+    if first_comment.start_line ~= vim.NIL and first_comment.original_line ~= first_comment.start_line then
+        table.insert(
+            lines,
+            f(
+                "Comment on lines +%d to +%d side %s",
+                first_comment.start_line,
+                first_comment.original_line,
+                first_comment.side
+            )
+        )
+    else
+        table.insert(lines, f("Comment on line +%d side %s", first_comment.original_line, first_comment.side))
+    end
+
+    for _, comment in pairs(comments) do
+        local created_at = " " .. util.format_date(comment.created_at)
+        local user_name = f("@%s %s ", comment.user.login, comment.author_association)
+        local spacer = ("─"):rep(width - #user_name - #created_at)
+        table.insert(lines, user_name .. spacer .. created_at)
+        table.insert(lines, "")
+        insert_body(comment.body, width, lines, true)
+        table.insert(lines, "")
+
+        if comment.reactions.total_count > 0 then
+            local reactions = ""
+            for r, count in pairs(comment.reactions) do
+                if r ~= "total_count" and r ~= "url" and count > 0 then
+                    local reaction = f(" %s%d", reaction_map[r], count)
+                    if #reactions > 0 then
+                        reactions = ("%s %s"):format(reactions, reaction)
+                    else
+                        reactions = reaction
+                    end
+                end
+            end
+            table.insert(lines, reactions)
+            table.insert(lines, "")
+        end
+    end
+
+    -----
+
+    local opt
+    local bg_opt
+    if opts.preview then
+        opt = vim.lsp.util.make_floating_popup_options(width, M.get_preview_height(#lines), {})
+        bg_opt = vim.tbl_extend("keep", {}, opt)
+
+        -- adjust for border
+        if opt.anchor == "NW" then
+            opt.row = opt.row + 1
+            opt.col = opt.col + 2
+        elseif opt.anchor == "NE" then
+            opt.row = opt.row + 1
+            opt.col = opt.col - 2
+        elseif opt.anchor == "SW" then
+            opt.row = opt.row - 1
+            opt.col = opt.col + 2
+        else
+            opt.row = opt.row - 1
+            opt.col = opt.col - 2
+        end
+    else
+        local height = math.ceil(vim.o.lines * 0.8)
+        local row = math.ceil(vim.o.lines * 0.1)
+        local col = math.ceil((vim.o.columns / 2) - 40)
+        opt = {
+            relative = "editor",
+            row = row,
+            col = col,
+            width = width,
+            height = height,
+            style = "minimal"
+        }
+        bg_opt = vim.tbl_extend("keep", {col = col - 2, row = row - 1}, opt)
+    end
+
+    local bufnr = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+    local winnr = vim.api.nvim_open_win(bufnr, false, opt)
+
+    local winhl
+    if opts.preview then
+        winhl = "Normal:WinNormalNC"
+    else
+        winhl = "Normal:Floating"
+    end
+
+    local bg_winnr, bg_bufnr = M.open_border_win(bg_opt, winhl)
+
+    local cwin = vim.api.nvim_get_current_win()
+    local cbufnr = vim.api.nvim_get_current_buf()
+
+    vim.api.nvim_set_current_win(winnr)
+    vim.cmd("setlocal filetype=prcomment")
+    vim.cmd("ownsyntax markdown")
+    if opts.preview then
+        vim.cmd("setlocal nowrap")
+    else
+        vim.cmd("setlocal wrap")
+    end
+    vim.cmd("syntax match GitHubUserName /@[^ ]\\+/")
+    vim.cmd(
+        "syntax match GitHubAuthorAssociation /\\(COLLABORATOR\\|CONTRIBUTOR\\|FIRST_TIMER\\|FIRST_TIME_CONTRIBUTOR\\|MANNEQUIN\\|MEMBER\\|NONE\\|OWNER\\)/"
+    )
+    vim.cmd("syntax match GitHubDate /\\d\\d\\d\\d \\w\\w\\w \\d\\d \\d\\d:\\d\\d \\(AM\\|PM\\) \\w\\w\\w/")
+    vim.cmd(
+        "syntax match GitHubCommentLength /Comment on lines\\? +\\(\\d\\)\\+\\( to +\\(\\d\\)\\+\\)\\?\\( side \\(LEFT\\|RIGHT\\)\\)\\?/"
+    )
+
+    -- TODO: clean this up
+    -- vim.b.temp_file_name = temp_file_name
+    -- vim.b.line1 = line1
+    -- vim.b.line2 = line2
+    -- vim.b.bufnr = cbufnr
+
+    vim.wo.winhl = winhl
+
+    if opts.preview then
+        vim.api.nvim_set_current_win(cwin)
+        vim.lsp.util.close_preview_autocmd(
+            {"CursorMoved", "CursorMovedI", "BufHidden", "BufLeave", "WinScrolled"},
+            bg_winnr
+        )
+        vim.lsp.util.close_preview_autocmd(
+            {"CursorMoved", "CursorMovedI", "BufHidden", "BufLeave", "WinScrolled"},
+            winnr
+        )
+    else
+        vim.cmd [[augroup PRComment]]
+        vim.cmd [[autocmd! * <buffer>]]
+        vim.cmd(f([[autocmd BufWipeout,BufHidden <buffer> exe 'bw %s']], bg_bufnr))
+        vim.cmd [[augroup END]]
+        vim.cmd [[command! -buffer -range PRCommentSave lua require("pr").save_comment()]]
+        vim.cmd [[command! -buffer -range PRCommentSuggest lua require("pr/comment").suggestion()]]
+    end
+
+    return bufnr, winnr
+end
+
 local function float(github_comments, pending_comments, enter, line1, line2, side, buf_name)
     local lines = {}
     local width = 80
@@ -205,7 +350,7 @@ local function float(github_comments, pending_comments, enter, line1, line2, sid
     return bufnr, winnr
 end
 
-M.open = function(comments, enter, line1, line2, args)
+M.open_old = function(comments, enter, line1, line2, args)
     local bufnr = vim.api.nvim_get_current_buf()
     local bufname = vim.fn.bufname(bufnr)
     local cursor = vim.fn.getcurpos()

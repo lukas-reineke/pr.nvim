@@ -89,4 +89,18 @@ function M.format_date(to_format)
     return date(to_format):addminutes(time_bias):fmt("%Y %b %d %I:%M %p %Z")
 end
 
+function M.build_comments(input, comments, base)
+    for _, comment in pairs(input) do
+        if comment.in_reply_to_id == nil then
+            comments[comment.id] = {comment}
+            base[comment.id] = comment.id
+        else
+            table.insert(comments[base[comment.in_reply_to_id]], comment)
+            base[comment.id] = base[comment.in_reply_to_id]
+        end
+    end
+
+    return comments, base
+end
+
 return M
